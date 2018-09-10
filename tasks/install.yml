@@ -1,0 +1,110 @@
+---
+# tasks file for nexus-install
+- name: Create user
+  user:
+    name: nexus
+  become: yes
+  when: folder_nexus.stat.exists == False
+
+- name: Create folder for nexus install
+  file:
+    state: directory
+    path: /opt/nexus/json
+    owner: nexus
+  become: yes
+  when: folder_nexus.stat.exists == False
+
+- name: Unarchive nexus
+  unarchive:
+    src: https://download.sonatype.com/nexus/3/latest-unix.tar.gz 
+    dest: /opt/nexus/
+    remote_src: yes
+  become: yes
+  when: folder_nexus.stat.exists == False
+
+- name: Get nexus folder 
+  shell: ls /opt/nexus/ | grep -i nexus
+  register: nexus_version
+  become: yes
+  when: folder_nexus.stat.exists == False
+
+- name: Create nexus
+  command: cp -r /opt/nexus/{{ nexus_version.stdout }} /opt/nexus/nexus
+  become: yes
+  when: folder_nexus.stat.exists == False
+
+- name: Deploy configuration
+  template:
+    src: nexus-default.properties.j2
+    dest: /opt/nexus/nexus/etc/nexus-default.properties
+    owner: nexus
+  become: yes
+  when: folder_nexus.stat.exists == False
+
+- name: Create Systemd
+  template:
+    src: nexus.service.j2
+    dest: /etc/systemd/system/nexus.service
+  become: yes
+  when: folder_nexus.stat.exists == False
+
+- name: Set user as owner
+  file:
+    owner: nexus
+    path: /opt/nexus/
+    recurse: yes
+  become: yes
+  when: folder_nexus.stat.exists == False
+
+- name: Start a service is running
+  systemd:
+    state: started
+    daemon_reload: yes
+    name: nexus
+  become: yes
+  notify: restart nexus
+  when: folder_nexus.stat.exists == False
+
+- name: force nexus restart 
+  meta: flush_handlers
+  when: folder_nexus.stat.exists == False
+
+- name: "wait for Nexus to come up"
+  uri:
+    url: "{{ nexus_address }}"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 300
+  delay: 10
+  when: folder_nexus.stat.exists == False
+
+- name: Upload script to change password
+  uri:
+    url: "{{ nexus_address }}/service/rest/v1/script"
+    method: POST
+    force_basic_auth: yes
+    user: admin 
+    password: "{{ nexus_default_admin_password }}"
+    body_format: json
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+    status_code: 204
+    body: "{  \"name\": \"adminpassword\",  \"type\": \"groovy\",  \"content\": \"security.securitySystem.changePassword('admin', args)\"}"
+  tags:
+    - admin
+
+- name: Change password
+  uri:
+    url: "{{ nexus_address }}/service/rest/v1/script/adminpassword/run"
+    user: admin
+    password: "{{ nexus_default_admin_password }}"
+    body: "{{ nexus_admin_password }}"
+    headers:
+      Content-Type: "text/plain"
+    method: POST
+    status_code: 200,204
+    force_basic_auth: yes
+  tags:
+    - admin

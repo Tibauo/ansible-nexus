@@ -1,0 +1,11 @@
+---
+# defaults file for nexus-install
+
+nexus_port: 8081
+nexus_admin: admin
+nexus_default_admin_password: admin123
+nexus_admin_password: admin1235
+nexus_address: http://localhost:{{ nexus_port }}
+
+
+repository_name: monrepository

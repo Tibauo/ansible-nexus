@@ -1,0 +1,30 @@
+- name: Upload script to create raw hosted
+  uri:
+    url: "{{ nexus_address }}/service/rest/v1/script"
+    method: POST
+    force_basic_auth: yes
+    user: admin 
+    password: "{{ nexus_admin_password }}"
+    body_format: json
+    return_content: yes
+    headers:
+      Content-Type: "application/json"
+    status_code: 204,401
+    body: "{\"name\": \"rawhosted\",  \"type\": \"groovy\",  \"content\": \"repository.createRawHosted(args);\"}"
+  ignore_errors: yes
+  tags:
+    - raw_hosted
+
+- name: Create raw hosted 
+  uri:
+    url: "{{ nexus_address }}/service/rest/v1/script/rawhosted/run"
+    user: admin
+    password: "{{ nexus_admin_password }}"
+    body: "{{ repository_name  }}"
+    headers:
+      Content-Type: "text/plain"
+    method: POST
+    status_code: 200,204
+    force_basic_auth: yes
+  tags:
+    - raw_hosted
